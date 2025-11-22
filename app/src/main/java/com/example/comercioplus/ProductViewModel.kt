@@ -3,32 +3,25 @@ package com.example.comercioplus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.comercioplus.model.Product
+import com.example.comercioplus.model.ProductRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class ProductViewModel : ViewModel() {
 
-    private val _products = MutableStateFlow<List<Product>>(emptyList())
-    val products: StateFlow<List<Product>> = _products
+    private val repository = ProductRepository.getInstance()
+
+    // Expone el flujo de productos directamente desde el repositorio
+    val products: StateFlow<List<Product>> = repository.products
 
     private val _selectedProduct = MutableStateFlow<Product?>(null)
-    val selectedProduct: StateFlow<Product?> = _selectedProduct
-
-    init {
-        // Datos de ejemplo iniciales
-        viewModelScope.launch {
-            _products.value = listOf(
-                Product("1", "Casco de moto", "Casco de seguridad para motociclistas", 99.99, "https://picsum.photos/id/10/400"),
-                Product("2", "Guantes de cuero", "Guantes de cuero para motociclistas", 29.99, "https://picsum.photos/id/11/400"),
-                Product("3", "Chaqueta de moto", "Chaqueta de protección con armadura", 199.99, "https://picsum.photos/id/12/400")
-            )
-        }
-    }
+    val selectedProduct: StateFlow<Product?> = _selectedProduct.asStateFlow()
 
     fun findProductById(productId: String) {
         viewModelScope.launch {
-            _selectedProduct.value = _products.value.find { it.id == productId }
+            _selectedProduct.value = repository.getProductById(productId)
         }
     }
 
@@ -36,35 +29,29 @@ class ProductViewModel : ViewModel() {
         _selectedProduct.value = null
     }
 
-    fun addProduct(name: String, description: String, price: Double, imageUrl: String) {
+    fun addProduct(name: String, description: String, price: Double, imageUrl: String, category: String) {
         viewModelScope.launch {
             val newProduct = Product(
-                id = (_products.value.maxOfOrNull { it.id.toIntOrNull() ?: 0 } ?: 0).plus(1).toString(),
                 name = name,
                 description = description,
                 price = price,
-                imageUrl = imageUrl
+                imageUrl = imageUrl,
+                category = category
             )
-            _products.value = _products.value + newProduct
+            repository.addProduct(newProduct)
         }
     }
 
-    fun updateProduct(id: String, name: String, description: String, price: Double, imageUrl: String) {
+    fun updateProduct(id: String, name: String, description: String, price: Double, imageUrl: String, category: String) {
         viewModelScope.launch {
-            val updatedList = _products.value.map {
-                if (it.id == id) {
-                    it.copy(name = name, description = description, price = price, imageUrl = imageUrl)
-                } else {
-                    it
-                }
-            }
-            _products.value = updatedList
+            val updatedProduct = Product(id, name, description, price, imageUrl, category)
+            repository.updateProduct(updatedProduct)
         }
     }
 
     fun deleteProduct(productId: String) {
         viewModelScope.launch {
-            _products.value = _products.value.filter { it.id != productId }
+            repository.deleteProduct(productId)
         }
     }
 }

@@ -4,32 +4,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.navigation.NavType
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import coil.compose.rememberAsyncImagePainter
-import com.example.comercioplus.model.Product
 import com.example.comercioplus.ui.theme.ComercioplusTheme
 
 class MainActivity : ComponentActivity() {
@@ -37,7 +25,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            ComercioplusTheme {
+            // Obtiene el ViewModel de configuración
+            val settingsViewModel: SettingsViewModel = viewModel()
+            val appearanceState by settingsViewModel.appearanceState.collectAsState()
+
+            // Aplica el tema claro u oscuro según la preferencia guardada
+            ComercioplusTheme(darkTheme = appearanceState.isDarkMode) {
                 ComercioPlusNavHost()
             }
         }
@@ -47,32 +40,32 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ComercioPlusNavHost() {
     val navController = rememberNavController()
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStackEntry?.destination?.route
     val productViewModel: ProductViewModel = viewModel()
 
-    NavHost(navController = navController, startDestination = "landing") {
+    NavHost(navController = navController, startDestination = "landing") { // Restaurado a "landing"
         composable("landing") { LandingScreen(navController = navController) }
         composable("login") { LoginScreen(navController = navController) }
         composable("register") { RegisterScreen(navController = navController) }
 
         composable("dashboard") {
-            MainScreen(navController = navController, currentRoute = currentRoute, title = "Dashboard") {
-                DashboardScreen(navController = navController)
+            MainScreen(navController = navController, title = "Inicio") { modifier ->
+                DashboardScreen(navController = navController, modifier = modifier)
             }
         }
         composable("product_list") {
             MainScreen(
                 navController = navController,
-                currentRoute = currentRoute,
-                title = "Productos",
+                title = "Tienda",
                 floatingActionButton = {
-                    FloatingActionButton(onClick = { navController.navigate("add_product") }) {
+                    FloatingActionButton(
+                        onClick = { navController.navigate("add_product") },
+                        containerColor = MaterialTheme.colorScheme.primary // Botón en color naranja
+                    ) {
                         Icon(Icons.Filled.Add, contentDescription = "Añadir producto")
                     }
                 }
             ) { modifier ->
-                ProductGrid(navController = navController, viewModel = productViewModel, modifier = modifier)
+                ProductListScreen(navController = navController, modifier = modifier)
             }
         }
         composable(
@@ -96,106 +89,19 @@ fun ComercioPlusNavHost() {
             )
         }
         composable("categories") {
-            MainScreen(navController = navController, currentRoute = currentRoute, title = "Categorías") {
-                CategoriesScreen(navController = navController)
+            MainScreen(navController = navController, title = "Categorías") { modifier ->
+                CategoriesScreen(navController = navController, modifier = modifier)
+            }
+        }
+        composable("analytics") {
+            MainScreen(navController = navController, title = "Analítica") { modifier ->
+                AnalyticsScreen(modifier = modifier)
             }
         }
         composable("settings") {
-            MainScreen(navController = navController, currentRoute = currentRoute, title = "Configuración") {
-                SettingsScreen(navController = navController)
+            MainScreen(navController = navController, title = "Configuración") { modifier ->
+                SettingsScreen(navController = navController, modifier = modifier)
             }
         }
-    }
-}
-
-@Composable
-fun ProductCard(product: Product, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(
-        modifier = modifier
-            .padding(8.dp)
-            .clickable { onClick() },
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column {
-            if (product.imageUrl.isBlank()) {
-                Icon(
-                    imageVector = Icons.Filled.BrokenImage,
-                    contentDescription = "No hay imagen",
-                    modifier = Modifier.fillMaxWidth().height(120.dp).padding(16.dp)
-                )
-            } else {
-                Image(
-                    painter = rememberAsyncImagePainter(product.imageUrl),
-                    contentDescription = product.name,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .clip(MaterialTheme.shapes.medium),
-                    contentScale = ContentScale.Crop
-                )
-            }
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = product.name,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "$${product.price}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ProductGrid(navController: NavController, viewModel: ProductViewModel, modifier: Modifier = Modifier) {
-    val products by viewModel.products.collectAsState()
-    var searchText by remember { mutableStateOf("") }
-
-    if (products.isEmpty()) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("No hay productos todavía", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = { navController.navigate("add_product") }) {
-                    Text("Crear nuevo producto")
-                }
-            }
-        }
-    } else {
-        Column(modifier = modifier.padding(16.dp)) {
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { searchText = it },
-                label = { Text("Buscar productos") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            )
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                items(products.filter { it.name.contains(searchText, ignoreCase = true) }) { product ->
-                    ProductCard(product = product) {
-                        navController.navigate("product_detail/${product.id}")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A202C)
-@Composable
-fun ProductGridPreview() {
-    ComercioplusTheme {
-        val navController = rememberNavController()
-        val productViewModel: ProductViewModel = viewModel()
-        ProductGrid(navController = navController, viewModel = productViewModel)
     }
 }
